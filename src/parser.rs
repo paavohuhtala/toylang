@@ -1,15 +1,23 @@
 use crate::ast::{Expression, Statement};
-use crate::token_stream::TokenStream;
+use crate::token_stream::{LexerError, LexerErrorCtx, TokenStream};
 use crate::tokens::{Token, TokenKind};
+use crate::utils::ResultExt;
 
 #[derive(Debug)]
 pub enum ParseError {
-  OutOfTokens,
+  UnexpectedEof,
+  LexerError(LexerError),
   UnexpectedToken { expected: TokenKind, was: TokenKind },
 }
 
 #[derive(Debug)]
 pub struct ParseErrorCtx(usize, ParseError);
+
+impl From<LexerErrorCtx> for ParseErrorCtx {
+  fn from(x: LexerErrorCtx) -> ParseErrorCtx {
+    ParseErrorCtx(x.0, ParseError::LexerError(x.1))
+  }
+}
 
 pub type ParseResult<T> = Result<T, ParseErrorCtx>;
 
@@ -20,16 +28,12 @@ pub struct Parser<'a> {
 impl<'a> TokenStream<'a> {
   pub fn peek(&mut self) -> ParseResult<&Token> {
     let offset = self.byte_offset();
-    self
-      .peek_token()
-      .ok_or(ParseErrorCtx(offset, ParseError::OutOfTokens))
+    self.peek_token().err_into()
   }
 
   pub fn take(&mut self) -> ParseResult<Token> {
     let offset = self.byte_offset();
-    self
-      .take_token()
-      .ok_or(ParseErrorCtx(offset, ParseError::OutOfTokens))
+    self.take_token().err_into()
   }
 
   pub fn take_of(&mut self, kind: TokenKind) -> ParseResult<Token> {

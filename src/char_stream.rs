@@ -86,4 +86,8 @@ impl<'a> CharStream<'a> {
       .checked_sub(self.start_offset)
       .unwrap()
   }
+
+  pub fn remaining(&self) -> usize {
+    self.data.len()
+  }
 }
