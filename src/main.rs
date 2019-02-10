@@ -1,8 +1,9 @@
-
 mod ast;
-mod tokens;
+mod char_stream;
+mod parse_utils;
 mod parser;
 mod token_stream;
+mod tokens;
 
 fn main() {
   println!("Hello, world!");
