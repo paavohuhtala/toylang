@@ -1,7 +1,7 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Token<'a> {
-  Const,
   Let,
+  Mut,
   Equals,
   LParen,
   RParen,
@@ -13,8 +13,8 @@ pub enum Token<'a> {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TokenKind {
-  Const,
   Let,
+  Mut,
   Equals,
   LParen,
   RParen,
@@ -27,8 +27,8 @@ pub enum TokenKind {
 impl<'a> Token<'a> {
   pub fn to_kind(&self) -> TokenKind {
     match self {
-      Token::Const => TokenKind::Const,
       Token::Let => TokenKind::Let,
+      Token::Mut => TokenKind::Mut,
       Token::Equals => TokenKind::Equals,
       Token::LParen => TokenKind::LParen,
       Token::RParen => TokenKind::RParen,

@@ -91,3 +91,59 @@ impl<'a> CharStream<'a> {
     self.data.len()
   }
 }
+
+#[cfg(test)]
+mod char_stream_tests {
+  use super::CharStream;
+
+  #[test]
+  fn take_one_empty() {
+    let mut stream = CharStream::from_str("");
+    assert_eq!(None, stream.take());
+  }
+
+  #[test]
+  fn take_one_twice() {
+    let mut stream = CharStream::from_str("ab");
+    assert_eq!(Some('a'), stream.take());
+    assert_eq!(Some('b'), stream.take());
+  }
+
+  #[test]
+  fn take_one_unicode() {
+    let mut stream = CharStream::from_str("乇乂丅尺卂 丅卄工匚匚");
+    assert_eq!(Some('乇'), stream.take());
+    assert_eq!(Some('乂'), stream.take());
+  }
+
+  #[test]
+  fn take_until_whitespace() {
+    let mut stream = CharStream::from_str("abc def");
+    let abc = stream.take_until(|c| c == ' ');
+    assert_eq!("abc", abc);
+    let remaining = stream.take_until(|_| false);
+    assert_eq!(" def", remaining);
+  }
+
+  #[test]
+  fn take_until_all() {
+    let mut stream = CharStream::from_str("AAA");
+    let aaa = stream.take_until(|c| c != 'A');
+    assert_eq!("AAA", aaa);
+    assert_eq!(None, stream.take());
+  }
+
+  #[test]
+  fn skip_while_all() {
+    let mut stream = CharStream::from_str("aaaa");
+    stream.skip_while(|c| c == 'a');
+    assert_eq!(None, stream.take());
+  }
+
+  #[test]
+  fn skip_until_all() {
+    let mut stream = CharStream::from_str("aaaa");
+    stream.skip_until(|c| c == 'b');
+    assert_eq!(None, stream.take());
+  }
+}

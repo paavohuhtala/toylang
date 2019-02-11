@@ -17,7 +17,7 @@ pub type LexerResult<T> = Result<T, LexerErrorCtx>;
 
 pub struct TokenStream<'a> {
   stream: CharStream<'a>,
-  lookahead: Option<(Token<'a>, usize)>,
+  lookahead: Option<Token<'a>>,
 }
 
 impl<'a> TokenStream<'a> {
@@ -31,8 +31,8 @@ impl<'a> TokenStream<'a> {
   fn read_keyword_or_identifier(&mut self) -> LexerResult<Token<'a>> {
     let keyword_or_identifier = self.stream.take_until(parse_utils::is_whitespace);
     match keyword_or_identifier {
-      "const" => Ok(Token::Const),
       "let" => Ok(Token::Let),
+      "mut" => Ok(Token::Mut),
       otherwise => Ok(Token::Identifier(otherwise)),
     }
   }
@@ -83,25 +83,20 @@ impl<'a> TokenStream<'a> {
     }
   }
 
-  pub fn peek_token(&mut self) -> LexerResult<&Token> {
+  pub fn peek(&mut self) -> LexerResult<&Token> {
     if self.lookahead.is_none() {
-      let offset = self.byte_offset();
-      self.lookahead = self.read_token().ok().map(|x| (x, offset));
+      self.lookahead = Some(self.read_token()?);
     }
 
-    let offset = self.byte_offset();
-    self
-      .lookahead
-      .as_ref()
-      .map(|x| &x.0)
-      .ok_or_else(|| LexerErrorCtx(offset, LexerError::UnexpectedEof))
+    Ok(self.lookahead.as_ref().unwrap_or_else(|| unsafe {
+      std::hint::unreachable_unchecked();
+    }))
   }
 
-  pub fn take_token(&mut self) -> LexerResult<Token> {
-    if self.lookahead.is_some() {
-      let mut token = None;
-      std::mem::swap(&mut token, &mut self.lookahead);
-      Ok(token.map(|x| x.0).unwrap())
+  pub fn take(&mut self) -> LexerResult<Token> {
+    if let Some(token) = self.lookahead {
+      self.lookahead = None;
+      Ok(token)
     } else {
       self.read_token()
     }
@@ -113,69 +108,13 @@ impl<'a> TokenStream<'a> {
 }
 
 #[cfg(test)]
-mod char_stream_tests {
-  use super::CharStream;
-
-  #[test]
-  fn take_one_empty() {
-    let mut stream = CharStream::from_str("");
-    assert_eq!(None, stream.take());
-  }
-
-  #[test]
-  fn take_one_twice() {
-    let mut stream = CharStream::from_str("ab");
-    assert_eq!(Some('a'), stream.take());
-    assert_eq!(Some('b'), stream.take());
-  }
-
-  #[test]
-  fn take_one_unicode() {
-    let mut stream = CharStream::from_str("乇乂丅尺卂 丅卄工匚匚");
-    assert_eq!(Some('乇'), stream.take());
-    assert_eq!(Some('乂'), stream.take());
-  }
-
-  #[test]
-  fn take_until_whitespace() {
-    let mut stream = CharStream::from_str("abc def");
-    let abc = stream.take_until(|c| c == ' ');
-    assert_eq!("abc", abc);
-    let remaining = stream.take_until(|_| false);
-    assert_eq!(" def", remaining);
-  }
-
-  #[test]
-  fn take_until_all() {
-    let mut stream = CharStream::from_str("AAA");
-    let aaa = stream.take_until(|c| c != 'A');
-    assert_eq!("AAA", aaa);
-    assert_eq!(None, stream.take());
-  }
-
-  #[test]
-  fn skip_while_all() {
-    let mut stream = CharStream::from_str("aaaa");
-    stream.skip_while(|c| c == 'a');
-    assert_eq!(None, stream.take());
-  }
-
-  #[test]
-  fn skip_until_all() {
-    let mut stream = CharStream::from_str("aaaa");
-    stream.skip_until(|c| c == 'b');
-    assert_eq!(None, stream.take());
-  }
-}
-
-#[cfg(test)]
 mod token_stream_tests {
   use super::{Token, TokenStream};
 
   #[test]
   fn read_seq() {
-    let mut stream = TokenStream::new("const x = 10");
-    assert_eq!(Ok(Token::Const), stream.read_token());
+    let mut stream = TokenStream::new("let x = 10");
+    assert_eq!(Ok(Token::Let), stream.read_token());
     assert_eq!(Ok(Token::Identifier("x")), stream.read_token());
     assert_eq!(Ok(Token::Equals), stream.read_token());
     assert_eq!(Ok(Token::Integer(10)), stream.read_token());

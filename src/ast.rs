@@ -16,7 +16,11 @@ pub enum Expression {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Statement {
-  DeclareVariable(String, Expression),
+  DeclareVariable {
+    name: String,
+    is_mutable: bool,
+    initial_value: Expression,
+  },
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
