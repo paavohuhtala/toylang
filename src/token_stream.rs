@@ -17,7 +17,7 @@ pub type LexerResult<T> = Result<T, LexerErrorCtx>;
 
 pub struct TokenStream<'a> {
   stream: CharStream<'a>,
-  lookahead: Option<Token<'a>>,
+  lookahead: Option<(usize, Token<'a>)>,
 }
 
 impl<'a> TokenStream<'a> {
@@ -46,22 +46,23 @@ impl<'a> TokenStream<'a> {
     Ok(Token::Integer(parsed))
   }
 
-  fn read_token(&mut self) -> LexerResult<Token<'a>> {
+  fn read_token(&mut self) -> LexerResult<(usize, Token<'a>)> {
     use Token::*;
 
     self.stream.skip_whitespace();
 
+    let offset = self.byte_offset();
+
     if self.stream.remaining() == 0 {
-      return Ok(Token::EOF);
+      return Ok((offset, Token::EOF));
     }
 
-    let offset = self.byte_offset();
     let fst = self
       .stream
       .peek()
       .ok_or_else(|| LexerErrorCtx(offset, LexerError::UnexpectedEof))?;
 
-    match fst {
+    (match fst {
       '(' => {
         self.stream.advance();
         Ok(LParen)
@@ -80,26 +81,35 @@ impl<'a> TokenStream<'a> {
       }
       '0'..='9' => self.read_number(),
       _ => self.read_keyword_or_identifier(),
-    }
+    })
+    .map(|x| (offset, x))
   }
 
-  pub fn peek(&mut self) -> LexerResult<&Token> {
+  pub fn peek_pos(&mut self) -> LexerResult<&(usize, Token)> {
     if self.lookahead.is_none() {
       self.lookahead = Some(self.read_token()?);
     }
 
-    Ok(self.lookahead.as_ref().unwrap_or_else(|| unsafe {
+    Ok(&self.lookahead.as_ref().unwrap_or_else(|| unsafe {
       std::hint::unreachable_unchecked();
     }))
   }
 
-  pub fn take(&mut self) -> LexerResult<Token> {
+  pub fn peek(&mut self) -> LexerResult<&Token> {
+    self.peek_pos().map(|x| &x.1)
+  }
+
+  pub fn take_pos(&mut self) -> LexerResult<(usize, Token)> {
     if let Some(token) = self.lookahead {
       self.lookahead = None;
       Ok(token)
     } else {
       self.read_token()
     }
+  }
+
+  pub fn take(&mut self) -> LexerResult<Token> {
+    self.take_pos().map(|x| x.1)
   }
 
   pub fn byte_offset(&self) -> usize {
@@ -114,10 +124,10 @@ mod token_stream_tests {
   #[test]
   fn read_seq() {
     let mut stream = TokenStream::new("let x = 10");
-    assert_eq!(Ok(Token::Let), stream.read_token());
-    assert_eq!(Ok(Token::Identifier("x")), stream.read_token());
-    assert_eq!(Ok(Token::Equals), stream.read_token());
-    assert_eq!(Ok(Token::Integer(10)), stream.read_token());
-    assert_eq!(Ok(Token::EOF), stream.read_token());
+    assert_eq!(Ok(Token::Let), stream.take());
+    assert_eq!(Ok(Token::Identifier("x")), stream.take());
+    assert_eq!(Ok(Token::Equals), stream.take());
+    assert_eq!(Ok(Token::Integer(10)), stream.take());
+    assert_eq!(Ok(Token::EOF), stream.take());
   }
 }

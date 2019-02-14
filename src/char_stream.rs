@@ -1,45 +1,45 @@
 use crate::parse_utils;
 
 pub struct CharStream<'a> {
-  start_offset: usize,
-  data: &'a str,
+  full: &'a str,
+  remaining: &'a str,
 }
 
 impl<'a> CharStream<'a> {
   pub fn from_str(data: &'a str) -> CharStream<'a> {
     CharStream {
-      data,
-      start_offset: data.as_ptr() as usize,
+      remaining: data,
+      full: data,
     }
   }
 
   fn has_next(&self) -> bool {
-    self.data.len() > 0
+    self.remaining.len() > 0
   }
 
   pub fn peek(&self) -> Option<char> {
-    if self.data.len() == 0 {
+    if self.remaining.len() == 0 {
       return None;
     }
 
-    self.data.chars().nth(0)
+    self.remaining.chars().nth(0)
   }
 
   pub fn advance(&mut self) {
-    if self.data.len() > 0 {
-      let offset = self.data.chars().nth(0).unwrap().len_utf8();
-      self.data = &self.data[offset..];
+    if self.remaining.len() > 0 {
+      let offset = self.remaining.chars().nth(0).unwrap().len_utf8();
+      self.remaining = &self.remaining[offset..];
     }
   }
 
   pub fn take(&mut self) -> Option<char> {
-    if self.data.len() == 0 {
+    if self.remaining.len() == 0 {
       return None;
     }
 
-    if let Some(ch) = self.data.chars().nth(0) {
+    if let Some(ch) = self.remaining.chars().nth(0) {
       let new_offset = ch.len_utf8();
-      self.data = &self.data[new_offset..];
+      self.remaining = &self.remaining[new_offset..];
       Some(ch)
     } else {
       unsafe {
@@ -49,17 +49,17 @@ impl<'a> CharStream<'a> {
   }
 
   pub fn take_until(&mut self, predicate: impl Fn(char) -> bool) -> &'a str {
-    let last = self.data.find(predicate);
+    let last = self.remaining.find(predicate);
 
     match last {
       None => {
         let mut result = "";
-        std::mem::swap(&mut result, &mut self.data);
+        std::mem::swap(&mut result, &mut self.remaining);
         result
       }
       Some(n) => {
-        let (result, remaining) = self.data.split_at(n);
-        self.data = remaining;
+        let (result, remaining) = self.remaining.split_at(n);
+        self.remaining = remaining;
         result
       }
     }
@@ -82,13 +82,17 @@ impl<'a> CharStream<'a> {
   }
 
   pub fn byte_offset(&self) -> usize {
-    (self.data.as_ptr() as usize)
-      .checked_sub(self.start_offset)
-      .unwrap()
+    if self.remaining.len() == 0 {
+      return self.full.len();
+    }
+
+    let first = self.full.as_ptr() as usize;
+    let current = self.remaining.as_ptr() as usize;
+    current.checked_sub(first).unwrap()
   }
 
   pub fn remaining(&self) -> usize {
-    self.data.len()
+    self.remaining.len()
   }
 }
 
