@@ -15,10 +15,14 @@ pub enum Expression {
 pub struct ExpressionCtx(pub usize, pub Expression);
 
 #[derive(Clone, PartialEq, Eq, Debug)]
+pub struct IdentifierCtx(pub usize, pub String);
+
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Statement {
   DeclareVariable {
-    name: String,
+    name: IdentifierCtx,
     is_mutable: bool,
+    initial_type: Option<IdentifierCtx>,
     initial_value: ExpressionCtx,
   },
 }

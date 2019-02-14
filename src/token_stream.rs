@@ -79,6 +79,10 @@ impl<'a> TokenStream<'a> {
         self.stream.advance();
         Ok(Semicolon)
       }
+      ':' => {
+        self.stream.advance();
+        Ok(Colon)
+      }
       '0'..='9' => self.read_number(),
       _ => self.read_keyword_or_identifier(),
     })
