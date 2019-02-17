@@ -8,6 +8,7 @@ pub enum BinaryOperator {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Expression {
   IntegerConstant(i128),
+  Local(String),
   BinaryExpression(BinaryOperator, Box<(ExpressionCtx, ExpressionCtx)>),
 }
 
@@ -24,6 +25,9 @@ pub enum Statement {
     is_mutable: bool,
     initial_type: Option<IdentifierCtx>,
     initial_value: ExpressionCtx,
+  },
+  Block {
+    inner: Vec<StatementCtx>,
   },
 }
 

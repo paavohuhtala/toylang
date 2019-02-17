@@ -71,6 +71,14 @@ impl<'a> TokenStream<'a> {
         self.stream.advance();
         Ok(RParen)
       }
+      '{' => {
+        self.stream.advance();
+        Ok(LBrace)
+      }
+      '}' => {
+        self.stream.advance();
+        Ok(RBrace)
+      }
       '=' => {
         self.stream.advance();
         Ok(Equals)

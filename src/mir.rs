@@ -86,12 +86,13 @@ impl Scope {
 #[derive(Debug, PartialEq, Eq)]
 pub enum MirExpression {
   IntegerConstant(i128),
+  Local(String),
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum MirStatement {
   Block {
-    scope: ScopeId,
+    scope_id: ScopeId,
     inner: Vec<MirStatement>,
   },
   AssignLocal {
@@ -225,6 +226,16 @@ pub fn transform_statement(
 ) -> MirStatement {
   // let scope = ctx.scopes.get(&scope_id).unwrap();
   match statement {
+    Statement::Block { inner } => {
+      let scope_id = ctx.declare_scope(Some(scope_id));
+      MirStatement::Block {
+        scope_id,
+        inner: inner
+          .iter()
+          .map(|StatementCtx(_, statement)| transform_statement(ctx, scope_id, statement))
+          .collect(),
+      }
+    }
     Statement::DeclareVariable {
       name,
       initial_type,

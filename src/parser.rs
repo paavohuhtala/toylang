@@ -2,14 +2,14 @@ use crate::ast::{Expression, ExpressionCtx, IdentifierCtx, Statement, StatementC
 use crate::token_stream::{LexerError, LexerErrorCtx, TokenStream};
 use crate::tokens::{Token, TokenKind};
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ParseError {
   UnexpectedEof,
   LexerError(LexerError),
   UnexpectedToken { expected: TokenKind, was: TokenKind },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct ParseErrorCtx(usize, ParseError);
 
 impl From<LexerErrorCtx> for ParseErrorCtx {
@@ -63,11 +63,16 @@ impl<'a> TokenStream<'a> {
 }
 
 impl<'a> Parser<'a> {
+  pub fn new(lexer: &'a mut TokenStream<'a>) -> Parser<'a> {
+    Parser { lexer }
+  }
+
   fn parse_expression(&mut self) -> ParseResult<ExpressionCtx> {
     let (pos, first) = self.lexer.take_pos()?;
 
     match first {
       Token::Integer(i) => Ok(ExpressionCtx(pos, Expression::IntegerConstant(i))),
+      Token::Identifier(x) => Ok(ExpressionCtx(pos, Expression::Local(x.to_string()))),
       _ => unimplemented!(),
     }
   }
@@ -107,11 +112,30 @@ impl<'a> Parser<'a> {
     ))
   }
 
+  pub fn parse_block(&mut self) -> ParseResult<StatementCtx> {
+    let (pos, _) = self.lexer.take_of(TokenKind::LBrace)?;
+
+    let mut inner = Vec::new();
+
+    loop {
+      let next = self.lexer.peek()?;
+      if *next == Token::RBrace {
+        self.lexer.take()?;
+        break;
+      }
+
+      inner.push(self.parse_statement()?);
+    }
+
+    Ok(StatementCtx(pos, Statement::Block { inner }))
+  }
+
   pub fn parse_statement(&mut self) -> ParseResult<StatementCtx> {
     let first = self.lexer.peek()?;
 
     match first {
       Token::Let => self.parse_declaration(),
+      Token::LBrace => self.parse_block(),
       _ => unimplemented!("Unimplemented statement."),
     }
   }
@@ -188,5 +212,32 @@ mod parser_tests {
       )) if name == "mutable_x" => {}
       _ => panic!("Unexpected AST: {:#?}", statement),
     };
+  }
+
+  #[test]
+  fn parse_block() {
+    let mut parser = Parser {
+      lexer: &mut TokenStream::new("{ let x = 0; }"),
+    };
+
+    let statement = parser.parse_statement();
+
+    assert_eq!(
+      Ok(StatementCtx(
+        0,
+        Block {
+          inner: vec![StatementCtx(
+            2,
+            DeclareVariable {
+              name: IdentifierCtx(6, "x".to_string()),
+              initial_type: None,
+              is_mutable: false,
+              initial_value: ExpressionCtx(10, IntegerConstant(0))
+            }
+          )]
+        }
+      )),
+      statement
+    );
   }
 }
