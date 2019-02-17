@@ -88,7 +88,7 @@ impl Scope {
 #[derive(Debug, PartialEq, Eq)]
 pub enum MirExpression {
   IntegerConstant(i128),
-  Local(String),
+  Local(LocalId),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -228,9 +228,12 @@ pub fn transform_expression(
   scope_id: ScopeId,
   expression: &Expression,
 ) -> MirExpression {
-  let scope = ctx.scopes.get(&scope_id).unwrap();
   match expression {
     Expression::IntegerConstant(x) => MirExpression::IntegerConstant(*x),
+    Expression::Local(local) => {
+      let local_id = ctx.resolve_named_local(scope_id, local).unwrap();
+      MirExpression::Local(local_id)
+    }
     _ => panic!(),
   }
 }

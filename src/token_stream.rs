@@ -29,7 +29,14 @@ impl<'a> TokenStream<'a> {
   }
 
   fn read_keyword_or_identifier(&mut self) -> LexerResult<Token<'a>> {
-    let keyword_or_identifier = self.stream.take_until(parse_utils::is_whitespace);
+    let keyword_or_identifier = self.stream.take_while_indexed(|(i, x)| {
+      if i == 0 {
+        parse_utils::is_valid_identifier_first(x)
+      } else {
+        parse_utils::is_valid_in_identifier(x)
+      }
+    });
+
     match keyword_or_identifier {
       "let" => Ok(Token::Let),
       "mut" => Ok(Token::Mut),

@@ -61,8 +61,29 @@ impl<'a> CharStream<'a> {
     }
   }
 
+  pub fn take_until_indexed(&mut self, predicate: impl Fn((usize, char)) -> bool) -> &'a str {
+    let last = self.remaining.char_indices().position(predicate);
+
+    match last {
+      None => {
+        let mut result = "";
+        std::mem::swap(&mut result, &mut self.remaining);
+        result
+      }
+      Some(n) => {
+        let (result, remaining) = self.remaining.split_at(n);
+        self.remaining = remaining;
+        result
+      }
+    }
+  }
+
   pub fn take_while(&mut self, predicate: impl Fn(char) -> bool) -> &'a str {
     self.take_until(|x| !predicate(x))
+  }
+
+  pub fn take_while_indexed(&mut self, predicate: impl Fn((usize, char)) -> bool) -> &'a str {
+    self.take_until_indexed(|(i, x)| !predicate((i, x)))
   }
 
   pub fn skip_until(&mut self, predicate: impl Fn(char) -> bool) {
