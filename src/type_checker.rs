@@ -1,13 +1,16 @@
 #![allow(dead_code)]
 
+use crate::mir::MirProgram;
 use crate::mir::ScopeId;
 use crate::mir::{MirExpression, MirStatement, PrimitiveType, TypeRef};
 use crate::semantic::SemanticContext;
 
+#[derive(Debug)]
 pub enum TypeError {
   NotAssignable { target: TypeRef, x: TypeRef },
 }
 
+#[derive(Debug)]
 pub struct TypeErrorCtx(usize, TypeError);
 
 pub type TypeResult<T> = Result<T, TypeErrorCtx>;
@@ -79,6 +82,14 @@ pub fn visit_statement(
     }
     _ => panic!(),
   }
+}
+
+pub fn visit_program(ctx: &mut SemanticContext, program: &mut MirProgram) -> TypeResult<()> {
+  for statement in &mut program.0 {
+    visit_statement(ctx, ScopeId(0), statement)?;
+  }
+
+  Ok(())
 }
 
 #[cfg(test)]

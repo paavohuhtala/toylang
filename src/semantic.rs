@@ -6,7 +6,7 @@ use std::collections::HashMap;
 pub struct SemanticContext {
   user_types: HashMap<UserTypeId, UserType>,
   scopes: HashMap<ScopeId, Scope>,
-  locals: HashMap<LocalId, Local>,
+  pub locals: HashMap<LocalId, Local>,
   next_scope_id: ScopeId,
   next_user_type_id: UserTypeId,
   next_local_id: LocalId,

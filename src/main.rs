@@ -14,6 +14,7 @@ use std::io::stdin;
 use crate::parser::Parser;
 use crate::semantic::transform_program;
 use crate::token_stream::TokenStream;
+use crate::type_checker::visit_program;
 
 fn main() {
   let input = stdin();
@@ -28,5 +29,14 @@ fn main() {
 
     let transformed = program.map(transform_program);
     println!("MIR: {:#?}", transformed);
+
+    if let Ok((mut ctx, mut program)) = transformed {
+      match visit_program(&mut ctx, &mut program) {
+        Ok(_) => {
+          println!("Type checked OK! Locals: {:#?}", ctx.locals);
+        }
+        Err(err) => println!("Err: {:?}", err),
+      }
+    }
   }
 }
