@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 use crate::mir::ScopeId;
-use crate::mir::SemanticContext;
 use crate::mir::{MirExpression, MirStatement, PrimitiveType, TypeRef};
+use crate::semantic::SemanticContext;
 
 pub enum TypeError {
   NotAssignable { target: TypeRef, x: TypeRef },
@@ -35,6 +35,9 @@ pub fn resolve_expression(
 ) -> Option<TypeRef> {
   match expression {
     MirExpression::IntegerConstant(_) => Some(TypeRef::Primitive(PrimitiveType::I32)),
+    MirExpression::Local(local_id) => ctx
+      .resolve_local(scope_id, *local_id)
+      .and_then(|x| x.initial_type),
     _ => None,
   }
 }

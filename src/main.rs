@@ -3,6 +3,7 @@ mod char_stream;
 mod mir;
 mod parse_utils;
 mod parser;
+mod semantic;
 mod token_stream;
 mod tokens;
 mod type_checker;
@@ -10,8 +11,8 @@ mod utils;
 
 use std::io::stdin;
 
-use crate::mir::transform_program;
 use crate::parser::Parser;
+use crate::semantic::transform_program;
 use crate::token_stream::TokenStream;
 
 fn main() {
