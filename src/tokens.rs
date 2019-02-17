@@ -8,7 +8,7 @@ pub enum Token<'a> {
   Colon,
   Semicolon,
   Identifier(&'a str),
-  Integer(i64),
+  Integer(i128),
   EOF,
 }
 

@@ -1,115 +1,72 @@
-use crate::ast::{Expression, ExpressionCtx, Statement, StatementCtx};
+use crate::mir::ScopeId;
+use crate::mir::SemanticContext;
+use crate::mir::{MirExpression, MirStatement, PrimitiveType, TypeRef, UserType};
 use std::collections::HashMap;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct ScopeId(usize);
-
-pub struct Scope {
-  parent: Option<ScopeId>,
+pub enum TypeError {
+  NotAssignable { target: TypeRef, x: TypeRef },
 }
 
-pub struct PrimitiveTypes {
-  i32_type: Type,
-  bool_type: Type,
-}
+pub struct TypeErrorCtx(usize, TypeError);
 
-impl Default for PrimitiveTypes {
-  fn default() -> PrimitiveTypes {
-    PrimitiveTypes {
-      i32_type: Type::Primitive(PrimitiveType::I32),
-      bool_type: Type::Primitive(PrimitiveType::Bool),
-    }
+pub type TypeResult<T> = Result<T, TypeErrorCtx>;
+
+pub fn are_equal(ctx: &mut SemanticContext, a: TypeRef, b: TypeRef) -> bool {
+  use self::TypeRef::*;
+  match (a, b) {
+    (Primitive(a), Primitive(b)) => a == b,
+    _ => false,
   }
 }
 
-pub struct TypeCheckingCtx {
-  scopes: HashMap<ScopeId, Scope>,
-  types: HashMap<TypeId, Type>,
-  named_types: HashMap<String, TypeId>,
-  pub primitive: PrimitiveTypes,
-}
-
-impl TypeCheckingCtx {
-  pub fn new() -> TypeCheckingCtx {
-    TypeCheckingCtx {
-      scopes: HashMap::new(),
-      types: HashMap::new(),
-      named_types: HashMap::new(),
-      primitive: PrimitiveTypes::default(),
-    }
+pub fn is_assignable(ctx: &mut SemanticContext, a: TypeRef, b: TypeRef) -> bool {
+  use self::TypeRef::*;
+  match (a, b) {
+    (Primitive(a), Primitive(b)) => a == b,
+    _ => false,
   }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct TypeId(usize);
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PrimitiveType {
-  I32,
-  Bool,
+pub fn resolve_expression(
+  ctx: &mut SemanticContext,
+  scope_id: ScopeId,
+  expression: &MirExpression,
+) -> Option<TypeRef> {
+  match expression {
+    MirExpression::IntegerConstant(_) => Some(TypeRef::Primitive(PrimitiveType::I32)),
+    _ => None,
+  }
 }
 
-pub enum Type {
-  Named(String),
-  Primitive(PrimitiveType),
-  Array(TypeId),
-}
+pub fn visit_statement(
+  ctx: &mut SemanticContext,
+  scope_id: ScopeId,
+  statement: &mut MirStatement,
+) -> TypeResult<()> {
+  match statement {
+    MirStatement::AssignLocal {
+      local_id, value, ..
+    } => {
+      let value_type = resolve_expression(ctx, scope_id, value).unwrap();
+      let local = ctx.resolve_local_mut(scope_id, *local_id);
 
-impl TypeCheckingCtx {
-  pub fn resolve_named_type(&self, name: &str) -> Option<&Type> {
-    match name {
-      "i32" => Some(&self.primitive.i32_type),
-      "bool" => Some(&self.primitive.bool_type),
-      name => {
-        let id = self.named_types.get(name)?;
-        self.types.get(id)
+      if local.initial_type == None {
+        local.initial_type = Some(value_type);
+      } else if let Some(annotated_type) = local.initial_type {
+        if !is_assignable(ctx, annotated_type, value_type) {
+          return Err(TypeErrorCtx(
+            0,
+            TypeError::NotAssignable {
+              target: annotated_type,
+              x: value_type,
+            },
+          ));
+        }
       }
+
+      Ok(())
     }
-  }
-
-  pub fn resolve_type(&self, type_id: TypeId) -> Option<&Type> {
-    self.types.get(&type_id)
-  }
-
-  pub fn define_alias(&mut self, name: &str, type_id: TypeId) {
-    self.named_types.insert(name.to_string(), type_id).unwrap();
-  }
-
-  pub fn resolve_expression(&mut self, expression: &ExpressionCtx) -> Option<&Type> {
-    match &expression.1 {
-      Expression::IntegerLiteral(_) => Some(&self.primitive.i32_type),
-      _ => None,
-    }
-  }
-
-  pub fn visit_statement(&mut self, statement: &StatementCtx) -> bool {
-    match &statement.1 {
-      Statement::DeclareVariable {
-        initial_type,
-        initial_value,
-        ..
-      } => false,
-      _ => false,
-    }
-  }
-}
-
-impl Type {
-  fn is_assignable_to(&self, other: &Type, ctx: &TypeCheckingCtx) -> bool {
-    use self::Type::*;
-
-    match (self, other) {
-      (Named(a), Named(b)) => match (ctx.resolve_named_type(a), ctx.resolve_named_type(b)) {
-        (Some(a), Some(b)) => a.is_assignable_to(b, ctx),
-        _ => false,
-      },
-      (Primitive(a), Primitive(b)) => a == b,
-      (Array(a), Array(b)) => match (ctx.resolve_type(*a), ctx.resolve_type(*b)) {
-        (Some(a), Some(b)) => a.is_assignable_to(b, ctx),
-        _ => false,
-      },
-      _ => false,
-    }
+    _ => panic!(),
   }
 }
 
@@ -119,17 +76,11 @@ mod assignability_tests {
 
   #[test]
   fn primitive_resolved() {
-    let ctx = TypeCheckingCtx::new();
-
-    assert!(ctx
-      .primitive
-      .i32_type
-      .is_assignable_to(&ctx.primitive.i32_type, &ctx))
-  }
-
-  #[test]
-  fn primitive_named() {
-    let ctx = TypeCheckingCtx::new();
-    assert!(Type::Named("i32".to_string()).is_assignable_to(&Type::Named("i32".to_string()), &ctx));
+    let mut ctx = SemanticContext::new();
+    assert!(is_assignable(
+      &mut ctx,
+      TypeRef::Primitive(PrimitiveType::I32),
+      TypeRef::Primitive(PrimitiveType::I32)
+    ));
   }
 }

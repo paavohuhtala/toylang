@@ -7,7 +7,7 @@ pub enum BinaryOperator {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Expression {
-  IntegerLiteral(i64),
+  IntegerConstant(i128),
   BinaryExpression(BinaryOperator, Box<(ExpressionCtx, ExpressionCtx)>),
 }
 

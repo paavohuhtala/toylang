@@ -52,7 +52,7 @@ impl<'a> TokenStream<'a> {
       })
   }
 
-  pub fn take_integer(&mut self) -> ParseResult<(usize, i64)> {
+  pub fn take_integer(&mut self) -> ParseResult<(usize, i128)> {
     self.take_of(TokenKind::Integer).map(|token| match token.1 {
       Token::Integer(value) => (token.0, value),
       _ => unsafe {
@@ -67,7 +67,7 @@ impl<'a> Parser<'a> {
     let (pos, first) = self.lexer.take_pos()?;
 
     match first {
-      Token::Integer(i) => Ok(ExpressionCtx(pos, Expression::IntegerLiteral(i))),
+      Token::Integer(i) => Ok(ExpressionCtx(pos, Expression::IntegerConstant(i))),
       _ => unimplemented!(),
     }
   }
@@ -139,7 +139,7 @@ mod parser_tests {
           ref name,
           is_mutable: false,
           initial_type: None,
-          initial_value: ExpressionCtx(8, IntegerLiteral(10)),
+          initial_value: ExpressionCtx(8, IntegerConstant(10)),
         },
       )) if name.1 == "x" => {}
       _ => panic!("Unexpected AST: {:#?}", statement),
@@ -161,7 +161,7 @@ mod parser_tests {
           name: IdentifierCtx(4, ref name),
           is_mutable: false,
           initial_type: Some(IdentifierCtx(8, ref type_name)),
-          initial_value: ExpressionCtx(14, IntegerLiteral(10)),
+          initial_value: ExpressionCtx(14, IntegerConstant(10)),
         },
       )) if name == "x" && type_name == "i32" => {}
       _ => panic!("Unexpected AST: {:#?}", statement),
@@ -183,7 +183,7 @@ mod parser_tests {
           name: IdentifierCtx(8, ref name),
           is_mutable: true,
           initial_type: None,
-          initial_value: ExpressionCtx(20, IntegerLiteral(0)),
+          initial_value: ExpressionCtx(20, IntegerConstant(0)),
         },
       )) if name == "mutable_x" => {}
       _ => panic!("Unexpected AST: {:#?}", statement),
