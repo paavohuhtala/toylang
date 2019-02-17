@@ -1,7 +1,8 @@
+#![allow(dead_code)]
+
 use crate::mir::ScopeId;
 use crate::mir::SemanticContext;
-use crate::mir::{MirExpression, MirStatement, PrimitiveType, TypeRef, UserType};
-use std::collections::HashMap;
+use crate::mir::{MirExpression, MirStatement, PrimitiveType, TypeRef};
 
 pub enum TypeError {
   NotAssignable { target: TypeRef, x: TypeRef },
@@ -48,7 +49,7 @@ pub fn visit_statement(
       local_id, value, ..
     } => {
       let value_type = resolve_expression(ctx, scope_id, value).unwrap();
-      let local = ctx.resolve_local_mut(scope_id, *local_id);
+      let local = ctx.resolve_local_mut(scope_id, *local_id).unwrap();
 
       if local.initial_type == None {
         local.initial_type = Some(value_type);
@@ -62,6 +63,13 @@ pub fn visit_statement(
             },
           ));
         }
+      }
+
+      Ok(())
+    }
+    MirStatement::Block { scope_id, inner } => {
+      for statement in inner {
+        visit_statement(ctx, *scope_id, statement)?;
       }
 
       Ok(())

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum BinaryOperator {
   Add,
@@ -26,6 +28,10 @@ pub enum Statement {
     initial_type: Option<IdentifierCtx>,
     initial_value: ExpressionCtx,
   },
+  AssignLocal {
+    local: IdentifierCtx,
+    value: ExpressionCtx,
+  },
   Block {
     inner: Vec<StatementCtx>,
   },
@@ -36,3 +42,6 @@ pub struct StatementCtx(pub usize, pub Statement);
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Block(pub Vec<StatementCtx>);
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Program(pub Vec<StatementCtx>);

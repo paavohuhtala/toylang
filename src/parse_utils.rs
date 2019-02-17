@@ -1,4 +1,3 @@
-
 pub fn is_whitespace(ch: char) -> bool {
-  ch == ' '
+  ch == ' ' || ch == '\r' || ch == '\n'
 }

@@ -13,10 +13,6 @@ impl<'a> CharStream<'a> {
     }
   }
 
-  fn has_next(&self) -> bool {
-    self.remaining.len() > 0
-  }
-
   pub fn peek(&self) -> Option<char> {
     if self.remaining.len() == 0 {
       return None;

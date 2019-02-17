@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::ast::*;
 use std::collections::{HashMap, HashSet};
 
@@ -60,7 +62,7 @@ pub struct UserType {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Local {
   pub id: LocalId,
-  pub scope: ScopeId,
+  pub scope_id: ScopeId,
   pub initial_type: Option<TypeRef>,
   pub name: String,
 }
@@ -101,6 +103,9 @@ pub enum MirStatement {
   },
 }
 
+#[derive(Debug)]
+pub struct MirProgram(Vec<MirStatement>);
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct SemanticContext {
   user_types: HashMap<UserTypeId, UserType>,
@@ -131,14 +136,14 @@ impl SemanticContext {
   ) -> LocalId {
     let id = self.next_local_id.next();
 
-    let mut scope = self.scopes.get_mut(&scope_id).unwrap();
+    let scope = self.scopes.get_mut(&scope_id).unwrap();
     scope.locals.insert(id);
 
     self.locals.insert(
       id,
       Local {
         id,
-        scope: scope_id,
+        scope_id,
         name,
         initial_type,
       },
@@ -176,33 +181,44 @@ impl SemanticContext {
     self.scopes.get_mut(&scope_id).unwrap()
   }
 
-  pub fn resolve_local(&self, mut scope_id: ScopeId, local_id: LocalId) -> &Local {
+  pub fn is_local_within_scope(&self, mut scope_id: ScopeId, local_id: LocalId) -> bool {
+    let local = self.locals.get(&local_id).unwrap();
     loop {
       let scope = self.resolve_scope(scope_id);
-      if scope.locals.contains(&local_id) {
-        return self.locals.get(&local_id).unwrap();
+
+      if scope.id == local.scope_id {
+        return true;
       }
 
       if let Some(parent) = scope.parent {
         scope_id = parent;
       } else {
-        panic!();
+        return false;
       }
     }
   }
 
-  pub fn resolve_local_mut(&mut self, mut scope_id: ScopeId, local_id: LocalId) -> &mut Local {
-    loop {
-      let scope = self.resolve_scope(scope_id);
-      if scope.locals.contains(&local_id) {
-        return self.locals.get_mut(&local_id).unwrap();
-      }
+  pub fn resolve_named_local(&self, scope_id: ScopeId, name: &str) -> Option<LocalId> {
+    self
+      .locals
+      .values()
+      .find(|x| x.name == name)
+      .map(|x| x.id)
+      .filter(|id| self.is_local_within_scope(scope_id, *id))
+  }
 
-      if let Some(parent) = scope.parent {
-        scope_id = parent;
-      } else {
-        panic!();
-      }
+  pub fn resolve_local(&self, scope_id: ScopeId, local_id: LocalId) -> Option<&Local> {
+    self
+      .locals
+      .get(&local_id)
+      .filter(|local| self.is_local_within_scope(scope_id, local.id))
+  }
+
+  pub fn resolve_local_mut(&mut self, scope_id: ScopeId, local_id: LocalId) -> Option<&mut Local> {
+    if self.is_local_within_scope(scope_id, local_id) {
+      self.locals.get_mut(&local_id)
+    } else {
+      None
     }
   }
 }
@@ -236,6 +252,13 @@ pub fn transform_statement(
           .collect(),
       }
     }
+    Statement::AssignLocal { local, value } => {
+      let local_id = ctx.resolve_named_local(scope_id, &local.1).unwrap();
+      MirStatement::AssignLocal {
+        local_id,
+        value: transform_expression(ctx, scope_id, &value.1),
+      }
+    }
     Statement::DeclareVariable {
       name,
       initial_type,
@@ -251,6 +274,18 @@ pub fn transform_statement(
       MirStatement::AssignLocal { local_id, value }
     }
   }
+}
+
+pub fn transform_program(Program(statements): Program) -> (SemanticContext, MirProgram) {
+  let mut ctx = SemanticContext::new();
+  let root_scope = ctx.declare_scope(None);
+
+  let mut transformed_statements = Vec::new();
+  for statement in statements {
+    transformed_statements.push(transform_statement(&mut ctx, root_scope, &statement.1));
+  }
+
+  (ctx, MirProgram(transformed_statements))
 }
 
 #[cfg(test)]
@@ -278,7 +313,7 @@ mod mir_transformer_tests {
       scope.locals.iter().cloned().collect::<Vec<LocalId>>()
     );
 
-    let local = ctx.resolve_local(scope_id, LocalId(0));
+    let local = ctx.resolve_local(scope_id, LocalId(0)).unwrap();
     assert_eq!(local.id, LocalId(0));
 
     assert_eq!(

@@ -10,8 +10,7 @@ mod utils;
 
 use std::io::stdin;
 
-use crate::ast::StatementCtx;
-use crate::mir::{transform_statement, SemanticContext};
+use crate::mir::transform_program;
 use crate::parser::Parser;
 use crate::token_stream::TokenStream;
 
@@ -23,14 +22,10 @@ fn main() {
     input.read_line(&mut buffer).unwrap();
     let mut token_stream = TokenStream::new(&buffer);
     let mut parser = Parser::new(&mut token_stream);
-    let statement = parser.parse_statement();
-    println!("Parsed: {:?}", statement);
+    let program = parser.parse_program();
+    println!("Parsed: {:#?}", program);
 
-    let mut ctx = SemanticContext::new();
-    let root_scope = ctx.declare_scope(None);
-    let transformed =
-      statement.map(|StatementCtx(_, x)| transform_statement(&mut ctx, root_scope, &x));
-
-    println!("MIR: {:?}", transformed);
+    let transformed = program.map(transform_program);
+    println!("MIR: {:#?}", transformed);
   }
 }

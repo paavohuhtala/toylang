@@ -1,3 +1,4 @@
+use crate::ast::Program;
 use crate::ast::{Expression, ExpressionCtx, IdentifierCtx, Statement, StatementCtx};
 use crate::token_stream::{LexerError, LexerErrorCtx, TokenStream};
 use crate::tokens::{Token, TokenKind};
@@ -77,6 +78,15 @@ impl<'a> Parser<'a> {
     }
   }
 
+  fn parse_assignment(&mut self) -> ParseResult<StatementCtx> {
+    let (pos, local) = self.lexer.take_identifier()?;
+    self.lexer.take_of(TokenKind::Equals)?;
+    let value = self.parse_expression()?;
+    self.lexer.take_of(TokenKind::Semicolon)?;
+
+    Ok(StatementCtx(pos, Statement::AssignLocal { local, value }))
+  }
+
   fn parse_declaration(&mut self) -> ParseResult<StatementCtx> {
     let (pos, _) = self.lexer.take_of(TokenKind::Let)?;
 
@@ -136,8 +146,23 @@ impl<'a> Parser<'a> {
     match first {
       Token::Let => self.parse_declaration(),
       Token::LBrace => self.parse_block(),
+      Token::Identifier(_) => self.parse_assignment(),
       _ => unimplemented!("Unimplemented statement."),
     }
+  }
+
+  pub fn parse_program(&mut self) -> ParseResult<Program> {
+    let mut statements = Vec::new();
+
+    loop {
+      let next = self.lexer.peek()?;
+      if *next == Token::EOF {
+        break;
+      }
+      statements.push(self.parse_statement()?);
+    }
+
+    Ok(Program(statements))
   }
 }
 
