@@ -1,5 +1,6 @@
 mod ast;
 mod char_stream;
+mod interpreter;
 mod mir;
 mod parse_utils;
 mod parser;
@@ -11,6 +12,7 @@ mod utils;
 
 use std::io::stdin;
 
+use crate::interpreter::Interpreter;
 use crate::parser::Parser;
 use crate::semantic::transform_program;
 use crate::token_stream::TokenStream;
@@ -34,6 +36,9 @@ fn main() {
       match visit_program(&mut ctx, &mut program) {
         Ok(_) => {
           println!("Type checked OK! Locals: {:#?}", ctx.locals);
+          let mut interpreter = Interpreter::new(ctx);
+          interpreter.execute_program(&program);
+          println!("Locals: {:?}", interpreter.locals);
         }
         Err(err) => println!("Err: {:?}", err),
       }

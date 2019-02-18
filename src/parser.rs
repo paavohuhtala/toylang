@@ -5,7 +5,6 @@ use crate::tokens::{Token, TokenKind};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ParseError {
-  UnexpectedEof,
   LexerError(LexerError),
   UnexpectedToken { expected: TokenKind, was: TokenKind },
 }
