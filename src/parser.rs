@@ -1,12 +1,22 @@
-use crate::ast::Program;
-use crate::ast::{Expression, ExpressionCtx, IdentifierCtx, Statement, StatementCtx};
+use crate::ast::{
+  BinaryOperator, Expression, ExpressionCtx, IdentifierCtx, Operator, Program, Statement,
+  StatementCtx, UnaryOperator,
+};
 use crate::token_stream::{LexerError, LexerErrorCtx, TokenStream};
-use crate::tokens::{Token, TokenKind};
+use crate::tokens::{OperatorToken, Token, TokenKind};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ParseError {
   LexerError(LexerError),
-  UnexpectedToken { expected: TokenKind, was: TokenKind },
+  UnexpectedToken {
+    expected: Vec<TokenKind>,
+    was: TokenKind,
+  },
+  IncompleteExpression {
+    operator: Operator,
+  },
+  InvalidExpression,
+  UnbalancedParenthesis,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -34,7 +44,7 @@ impl<'a> TokenStream<'a> {
       Err(ParseErrorCtx(
         token.0,
         ParseError::UnexpectedToken {
-          expected: kind,
+          expected: vec![kind],
           was: token_kind,
         },
       ))
@@ -67,13 +77,211 @@ impl<'a> Parser<'a> {
     Parser { lexer }
   }
 
-  fn parse_expression(&mut self) -> ParseResult<ExpressionCtx> {
+  fn parse_expression_token(&mut self) -> ParseResult<ExpressionCtx> {
     let (pos, first) = self.lexer.take_pos()?;
 
     match first {
+      Token::Operator(OperatorToken::Minus) => Ok(ExpressionCtx(
+        pos,
+        Expression::UnaryOp(
+          UnaryOperator::Negate,
+          Box::new(self.parse_expression_token()?),
+        ),
+      )),
       Token::Integer(i) => Ok(ExpressionCtx(pos, Expression::IntegerConstant(i))),
       Token::Identifier(x) => Ok(ExpressionCtx(pos, Expression::Local(x.to_string()))),
-      _ => unimplemented!(),
+      Token::LParen => {
+        let next_token = self.parse_expression_token()?;
+        let inner = self.parse_expression_opp(next_token, 0)?;
+        self.lexer.take_of(TokenKind::RParen)?;
+        Ok(inner)
+      }
+      _ => Err(ParseErrorCtx(
+        pos,
+        ParseError::UnexpectedToken {
+          expected: vec![
+            TokenKind::Operator,
+            TokenKind::Integer,
+            TokenKind::Identifier,
+            TokenKind::LParen,
+          ],
+          was: first.to_kind(),
+        },
+      )),
+    }
+  }
+
+  fn parse_expression_opp(
+    &mut self,
+    mut lhs: ExpressionCtx,
+    min_precedence: i32,
+  ) -> ParseResult<ExpressionCtx> {
+    fn as_op(token: Token) -> Option<Operator> {
+      match token {
+        Token::Operator(OperatorToken::Plus) => Some(Operator::Binary(BinaryOperator::Add)),
+        Token::Operator(OperatorToken::Minus) => Some(Operator::Binary(BinaryOperator::Sub)),
+        Token::Operator(OperatorToken::Asterisk) => Some(Operator::Binary(BinaryOperator::Mul)),
+        _ => None,
+      }
+    }
+
+    loop {
+      let &(pos, token) = self.lexer.peek_pos()?;
+      let op = as_op(token);
+
+      match op {
+        Some(Operator::Binary(op)) if op.get_precedence() >= min_precedence => {
+          self.lexer.take()?;
+          let mut rhs = self.parse_expression_token()?;
+          loop {
+            let &(pos, token) = self.lexer.peek_pos()?;
+            let next_op = as_op(token);
+
+            match next_op {
+              Some(next_op) if next_op.get_precedence() >= op.get_precedence() => {
+                rhs = self.parse_expression_opp(rhs, next_op.get_precedence())?;
+              }
+              _ => break,
+            }
+          }
+          lhs = ExpressionCtx(pos, Expression::BinaryOp(op, Box::new((lhs, rhs))));
+        }
+        _ => return Ok(lhs),
+      }
+    }
+  }
+
+  fn parse_expression(&mut self) -> ParseResult<ExpressionCtx> {
+    #[derive(Copy, Clone, PartialEq)]
+    enum OpStackItem {
+      Operator(Operator),
+      LParen,
+    }
+
+    let mut output: Vec<ExpressionCtx> = Vec::new();
+    let mut operators: Vec<(usize, OpStackItem)> = Vec::new();
+
+    let start_pos = self.lexer.peek_pos()?.0;
+
+    fn create_node(
+      operator: Operator,
+      pos: usize,
+      output: &mut Vec<ExpressionCtx>,
+    ) -> ParseResult<()> {
+      let node = match operator {
+        Operator::Binary(op) => {
+          let right = output.pop().ok_or(ParseErrorCtx(
+            pos,
+            ParseError::IncompleteExpression { operator },
+          ))?;
+
+          let left = output.pop().ok_or(ParseErrorCtx(
+            pos,
+            ParseError::IncompleteExpression { operator },
+          ))?;
+
+          let args = Box::new((left, right));
+          Expression::BinaryOp(op, args)
+        }
+        Operator::Unary(op) => {
+          let inner = output.pop().ok_or(ParseErrorCtx(
+            pos,
+            ParseError::IncompleteExpression { operator },
+          ))?;
+
+          Expression::UnaryOp(op, Box::new(inner))
+        }
+      };
+
+      output.push(ExpressionCtx(pos, node));
+      Ok(())
+    }
+
+    loop {
+      let &(pos, token) = self.lexer.peek_pos()?;
+
+      match token {
+        Token::Integer(i) => {
+          let expr = ExpressionCtx(pos, Expression::IntegerConstant(i));
+          self.lexer.take()?;
+          output.push(expr);
+        }
+        Token::Identifier(x) => {
+          let expr = ExpressionCtx(pos, Expression::Local(x.to_string()));
+          self.lexer.take()?;
+          output.push(expr);
+        }
+        Token::LParen => {
+          self.lexer.take()?;
+          operators.push((pos, OpStackItem::LParen));
+        }
+        Token::RParen => {
+          self.lexer.take()?;
+
+          loop {
+            match operators.first() {
+              Some((pos, OpStackItem::Operator(op))) => {
+                create_node(*op, *pos, &mut output)?;
+                operators.pop();
+              }
+              Some((_, OpStackItem::LParen)) => {
+                operators.pop();
+                break;
+              }
+              None => {
+                return Err(ParseErrorCtx(pos, ParseError::UnbalancedParenthesis));
+              }
+            }
+          }
+        }
+        Token::Operator(op) => {
+          self.lexer.take()?;
+
+          let op = match op {
+            OperatorToken::Plus => Operator::Binary(BinaryOperator::Add),
+            OperatorToken::Minus => Operator::Binary(BinaryOperator::Sub),
+            OperatorToken::Asterisk => Operator::Binary(BinaryOperator::Mul),
+          };
+
+          loop {
+            let first = operators.first().map(|(a, b)| (*a, *b));
+            match first {
+              Some((_, OpStackItem::LParen)) => {
+                break;
+              }
+              Some((pos, OpStackItem::Operator(stack_op))) => {
+                if stack_op.get_precedence() <= op.get_precedence() {
+                  break;
+                } else {
+                  operators.pop();
+                  create_node(op, pos, &mut output)?;
+                }
+              }
+              None => {
+                break;
+              }
+            }
+          }
+
+          operators.push((pos, OpStackItem::Operator(op)));
+        }
+        _ => break,
+      }
+    }
+
+    for (pos, x) in operators.iter().rev() {
+      match x {
+        OpStackItem::LParen => return Err(ParseErrorCtx(*pos, ParseError::UnbalancedParenthesis)),
+        OpStackItem::Operator(op) => {
+          create_node(*op, *pos, &mut output)?;
+        }
+      }
+    }
+
+    if output.len() != 1 {
+      Err(ParseErrorCtx(start_pos, ParseError::InvalidExpression))
+    } else {
+      Ok(output.remove(0))
     }
   }
 
@@ -107,7 +315,8 @@ impl<'a> Parser<'a> {
     };
 
     self.lexer.take_of(TokenKind::Equals)?;
-    let initial_value = self.parse_expression()?;
+    let lhs = self.parse_expression_token()?;
+    let initial_value = self.parse_expression_opp(lhs, 0)?;
     self.lexer.take_of(TokenKind::Semicolon)?;
 
     Ok(StatementCtx(
