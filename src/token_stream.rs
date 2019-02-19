@@ -1,6 +1,6 @@
 use crate::char_stream::CharStream;
 use crate::parse_utils;
-use crate::tokens::{OperatorToken, Token};
+use crate::tokens::Token;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LexerError {
@@ -100,15 +100,15 @@ impl<'a> TokenStream<'a> {
       }
       '+' => {
         self.stream.advance();
-        Ok(Operator(OperatorToken::Plus))
+        Ok(Plus)
       }
       '-' => {
         self.stream.advance();
-        Ok(Operator(OperatorToken::Minus))
+        Ok(Minus)
       }
       '*' => {
         self.stream.advance();
-        Ok(Operator(OperatorToken::Asterisk))
+        Ok(Asterisk)
       }
       '0'..='9' => self.read_number(),
       'A'..='z' => self.read_keyword_or_identifier(),

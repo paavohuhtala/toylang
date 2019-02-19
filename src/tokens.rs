@@ -1,11 +1,4 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OperatorToken {
-  Plus,
-  Minus,
-  Asterisk,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Token<'a> {
   Let,
   Mut,
@@ -18,7 +11,9 @@ pub enum Token<'a> {
   Semicolon,
   Identifier(&'a str),
   Integer(i128),
-  Operator(OperatorToken),
+  Plus,
+  Minus,
+  Asterisk,
   EOF,
 }
 
@@ -35,7 +30,9 @@ pub enum TokenKind {
   Semicolon,
   Identifier,
   Integer,
-  Operator,
+  Plus,
+  Minus,
+  Asterisk,
   EOF,
 }
 
@@ -53,7 +50,9 @@ impl<'a> Token<'a> {
       Token::Semicolon => TokenKind::Semicolon,
       Token::Identifier(_) => TokenKind::Identifier,
       Token::Integer(_) => TokenKind::Integer,
-      Token::Operator(_) => TokenKind::Operator,
+      Token::Plus => TokenKind::Plus,
+      Token::Minus => TokenKind::Minus,
+      Token::Asterisk => TokenKind::Asterisk,
       Token::EOF => TokenKind::EOF,
     }
   }
