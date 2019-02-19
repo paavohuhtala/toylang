@@ -2,6 +2,8 @@
 
 use std::collections::HashSet;
 
+use crate::ast_common::{BinaryOperator, UnaryOperator};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
 pub struct ScopeId(pub(crate) usize);
 
@@ -88,6 +90,8 @@ impl Scope {
 pub enum MirExpression {
   IntegerConstant(i128),
   Local(LocalId),
+  UnaryOp(UnaryOperator, Box<MirExpression>),
+  BinaryOp(BinaryOperator, Box<(MirExpression, MirExpression)>),
 }
 
 #[derive(Debug, PartialEq, Eq)]

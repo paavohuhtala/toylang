@@ -1,7 +1,5 @@
-use crate::ast::{
-  BinaryOperator, Expression, ExpressionCtx, IdentifierCtx, Operator, Program, Statement,
-  StatementCtx, UnaryOperator,
-};
+use crate::ast::{Expression, ExpressionCtx, IdentifierCtx, Program, Statement, StatementCtx};
+use crate::ast_common::{BinaryOperator, Operator, UnaryOperator};
 use crate::token_stream::{LexerError, LexerErrorCtx, TokenStream};
 use crate::tokens::{Token, TokenKind};
 
@@ -110,6 +108,8 @@ impl<'a> Parser<'a> {
     self.parse_expression_opp(lhs, 0)
   }
 
+  // This is based on the algorithm presented on Wikipedia: Operator-precedence parser
+  // https://en.wikipedia.org/wiki/Operator-precedence_parser#Pseudo-code
   fn parse_expression_opp(
     &mut self,
     mut lhs: ExpressionCtx,

@@ -130,7 +130,15 @@ pub fn transform_expression(
       let local_id = ctx.resolve_named_local(scope_id, local).unwrap();
       MirExpression::Local(local_id)
     }
-    _ => panic!(),
+    Expression::UnaryOp(op, arg) => {
+      let value = transform_expression(ctx, scope_id, &arg.1);
+      MirExpression::UnaryOp(*op, Box::new(value))
+    }
+    Expression::BinaryOp(op, args) => {
+      let lhs = transform_expression(ctx, scope_id, &(args.0).1);
+      let rhs = transform_expression(ctx, scope_id, &(args.1).1);
+      MirExpression::BinaryOp(*op, Box::new((lhs, rhs)))
+    }
   }
 }
 

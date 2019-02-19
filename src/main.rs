@@ -1,4 +1,5 @@
 mod ast;
+mod ast_common;
 mod char_stream;
 mod interpreter;
 mod mir;

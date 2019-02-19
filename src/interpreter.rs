@@ -25,6 +25,7 @@ impl Interpreter {
     match expression {
       MirExpression::IntegerConstant(i) => Value::I32(*i as i32),
       MirExpression::Local(local_id) => *self.locals.get(local_id).unwrap(),
+      _ => unimplemented!(),
     }
   }
 

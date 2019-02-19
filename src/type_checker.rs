@@ -1,13 +1,30 @@
 #![allow(dead_code)]
 
-use crate::mir::MirProgram;
-use crate::mir::ScopeId;
-use crate::mir::{MirExpression, MirStatement, PrimitiveType, TypeRef};
+use crate::ast_common::BinaryOperator;
+use crate::ast_common::UnaryOperator;
+use crate::mir::{
+  LocalId, MirExpression, MirProgram, MirStatement, PrimitiveType, ScopeId, TypeRef,
+};
 use crate::semantic::SemanticContext;
 
 #[derive(Debug)]
 pub enum TypeError {
-  NotAssignable { target: TypeRef, x: TypeRef },
+  NotAssignable {
+    target: TypeRef,
+    x: TypeRef,
+  },
+  InvalidUnaryOpArg {
+    op: UnaryOperator,
+    x: TypeRef,
+  },
+  InvalidBinaryOpArgs {
+    op: BinaryOperator,
+    lhs: TypeRef,
+    rhs: TypeRef,
+  },
+  UntypedLocal {
+    local_id: LocalId,
+  },
 }
 
 #[derive(Debug)]
@@ -35,13 +52,50 @@ pub fn resolve_expression(
   ctx: &mut SemanticContext,
   scope_id: ScopeId,
   expression: &MirExpression,
-) -> Option<TypeRef> {
+) -> TypeResult<TypeRef> {
+  use BinaryOperator::*;
+  use MirExpression::*;
+  use PrimitiveType::*;
+  use TypeRef::*;
+  use UnaryOperator::*;
+
   match expression {
-    MirExpression::IntegerConstant(_) => Some(TypeRef::Primitive(PrimitiveType::I32)),
-    MirExpression::Local(local_id) => ctx
-      .resolve_local(scope_id, *local_id)
-      .and_then(|x| x.initial_type),
-    _ => None,
+    IntegerConstant(_) => Ok(Primitive(I32)),
+    &Local(local_id) => {
+      let local = ctx.resolve_local(scope_id, local_id).unwrap();
+      local
+        .initial_type
+        .ok_or_else(|| TypeErrorCtx(0, TypeError::UntypedLocal { local_id }))
+    }
+    UnaryOp(op, x) => {
+      let x_type = resolve_expression(ctx, scope_id, x)?;
+      match (*op, x_type) {
+        (Negate, Primitive(I32)) => Ok(Primitive(I32)),
+        _ => Err(TypeErrorCtx(
+          0,
+          TypeError::InvalidUnaryOpArg { op: *op, x: x_type },
+        )),
+      }
+    }
+    BinaryOp(op, args) => {
+      let lhs_type = resolve_expression(ctx, scope_id, &args.0)?;
+      let rhs_type = resolve_expression(ctx, scope_id, &args.1)?;
+
+      match (lhs_type, *op, rhs_type) {
+        (Primitive(I32), Add, Primitive(I32))
+        | (Primitive(I32), Sub, Primitive(I32))
+        | (Primitive(I32), Mul, Primitive(I32)) => Ok(Primitive(I32)),
+        _ => Err(TypeErrorCtx(
+          0,
+          TypeError::InvalidBinaryOpArgs {
+            op: *op,
+            lhs: lhs_type,
+            rhs: rhs_type,
+          },
+        )),
+      }
+    }
+    _ => unimplemented!(),
   }
 }
 
