@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
-use crate::ast_common::{UnaryOperator, BinaryOperator};
+use crate::ast_common::{BinaryOperator, UnaryOperator};
 use crate::mir::{
-  LocalId, MirExpression, MirProgram, MirStatement, PrimitiveType, ScopeId, TypeRef,
+  LocalId, MirExpression, MirExpressionCtx, MirProgram, MirStatement, MirStatementCtx,
+  PrimitiveType, ScopeId, TypeRef,
 };
 use crate::semantic::SemanticContext;
 
@@ -50,7 +51,7 @@ pub fn is_assignable(ctx: &mut SemanticContext, a: TypeRef, b: TypeRef) -> bool 
 pub fn resolve_expression(
   ctx: &mut SemanticContext,
   scope_id: ScopeId,
-  expression: &MirExpression,
+  expression: &MirExpressionCtx,
 ) -> TypeResult<TypeRef> {
   use BinaryOperator::*;
   use MirExpression::*;
@@ -58,20 +59,22 @@ pub fn resolve_expression(
   use TypeRef::*;
   use UnaryOperator::*;
 
+  let MirExpressionCtx(pos, expression) = expression;
+
   match expression {
     IntegerConstant(_) => Ok(Primitive(I32)),
     &Local(local_id) => {
       let local = ctx.resolve_local(scope_id, local_id).unwrap();
       local
         .initial_type
-        .ok_or_else(|| TypeErrorCtx(0, TypeError::UntypedLocal { local_id }))
+        .ok_or_else(|| TypeErrorCtx(*pos, TypeError::UntypedLocal { local_id }))
     }
     UnaryOp(op, x) => {
       let x_type = resolve_expression(ctx, scope_id, x)?;
       match (*op, x_type) {
         (Negate, Primitive(I32)) => Ok(Primitive(I32)),
         _ => Err(TypeErrorCtx(
-          0,
+          *pos,
           TypeError::InvalidUnaryOpArg { op: *op, x: x_type },
         )),
       }
@@ -85,7 +88,7 @@ pub fn resolve_expression(
         | (Primitive(I32), Sub, Primitive(I32))
         | (Primitive(I32), Mul, Primitive(I32)) => Ok(Primitive(I32)),
         _ => Err(TypeErrorCtx(
-          0,
+          *pos,
           TypeError::InvalidBinaryOpArgs {
             op: *op,
             lhs: lhs_type,
@@ -101,8 +104,10 @@ pub fn resolve_expression(
 pub fn visit_statement(
   ctx: &mut SemanticContext,
   scope_id: ScopeId,
-  statement: &mut MirStatement,
+  statement: &mut MirStatementCtx,
 ) -> TypeResult<()> {
+  let MirStatementCtx(pos, statement) = statement;
+
   match statement {
     MirStatement::AssignLocal {
       local_id, value, ..
@@ -115,7 +120,7 @@ pub fn visit_statement(
       } else if let Some(annotated_type) = local.initial_type {
         if !is_assignable(ctx, annotated_type, value_type) {
           return Err(TypeErrorCtx(
-            0,
+            *pos,
             TypeError::NotAssignable {
               target: annotated_type,
               x: value_type,

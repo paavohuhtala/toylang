@@ -90,21 +90,27 @@ impl Scope {
 pub enum MirExpression {
   IntegerConstant(i128),
   Local(LocalId),
-  UnaryOp(UnaryOperator, Box<MirExpression>),
-  BinaryOp(BinaryOperator, Box<(MirExpression, MirExpression)>),
+  UnaryOp(UnaryOperator, Box<MirExpressionCtx>),
+  BinaryOp(BinaryOperator, Box<(MirExpressionCtx, MirExpressionCtx)>),
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct MirExpressionCtx(pub usize, pub MirExpression);
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum MirStatement {
   Block {
     scope_id: ScopeId,
-    inner: Vec<MirStatement>,
+    inner: Vec<MirStatementCtx>,
   },
   AssignLocal {
     local_id: LocalId,
-    value: MirExpression,
+    value: MirExpressionCtx,
   },
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct MirStatementCtx(pub usize, pub MirStatement);
+
 #[derive(Debug)]
-pub struct MirProgram(pub Vec<MirStatement>);
+pub struct MirProgram(pub Vec<MirStatementCtx>);

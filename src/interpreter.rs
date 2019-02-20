@@ -33,15 +33,15 @@ impl Interpreter {
       IntegerConstant(i) => I32(*i as i32),
       Local(local_id) => *self.locals.get(local_id).unwrap(),
       UnaryOp(Negate, expr) => {
-        if let I32(i) = self.evaluate(expr) {
+        if let I32(i) = self.evaluate(&expr.1) {
           I32(-i)
         } else {
           panic!()
         }
       }
       BinaryOp(op, args) => {
-        let lhs = self.evaluate(&args.0);
-        let rhs = self.evaluate(&args.1);
+        let lhs = self.evaluate(&(args.0).1);
+        let rhs = self.evaluate(&(args.1).1);
 
         match (lhs, op, rhs) {
           (I32(a), Add, I32(b)) => I32(a + b),
@@ -57,13 +57,13 @@ impl Interpreter {
   pub fn execute(&mut self, statement: &MirStatement) -> Option<Value> {
     match statement {
       MirStatement::AssignLocal { local_id, value } => {
-        let rhs = self.evaluate(value);
+        let rhs = self.evaluate(&value.1);
         self.locals.insert(*local_id, rhs);
         None
       }
       MirStatement::Block { inner, .. } => {
         for statement in inner {
-          self.execute(statement);
+          self.execute(&statement.1);
         }
         None
       }
@@ -72,7 +72,7 @@ impl Interpreter {
 
   pub fn execute_program(&mut self, program: &MirProgram) {
     for statement in &program.0 {
-      self.execute(statement);
+      self.execute(&statement.1);
     }
   }
 }
