@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
+use crate::ast_common::{BinaryOperator, UnaryOperator};
 use crate::mir::{LocalId, MirExpression, MirProgram, MirStatement};
 use crate::semantic::SemanticContext;
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Value {
@@ -22,10 +24,33 @@ impl Interpreter {
   }
 
   fn evaluate(&mut self, expression: &MirExpression) -> Value {
+    use BinaryOperator::*;
+    use MirExpression::*;
+    use UnaryOperator::*;
+    use Value::*;
+
     match expression {
-      MirExpression::IntegerConstant(i) => Value::I32(*i as i32),
-      MirExpression::Local(local_id) => *self.locals.get(local_id).unwrap(),
-      _ => unimplemented!(),
+      IntegerConstant(i) => I32(*i as i32),
+      Local(local_id) => *self.locals.get(local_id).unwrap(),
+      UnaryOp(Negate, expr) => {
+        if let I32(i) = self.evaluate(expr) {
+          I32(-i)
+        } else {
+          panic!()
+        }
+      }
+      BinaryOp(op, args) => {
+        let lhs = self.evaluate(&args.0);
+        let rhs = self.evaluate(&args.1);
+
+        match (lhs, op, rhs) {
+          (I32(a), Add, I32(b)) => I32(a + b),
+          (I32(a), Sub, I32(b)) => I32(a - b),
+          (I32(a), Mul, I32(b)) => I32(a * b),
+          _ => unreachable!(),
+        }
+      }
+      _ => unreachable!(),
     }
   }
 

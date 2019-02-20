@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
-use crate::ast_common::BinaryOperator;
-use crate::ast_common::UnaryOperator;
+use crate::ast_common::{UnaryOperator, BinaryOperator};
 use crate::mir::{
   LocalId, MirExpression, MirProgram, MirStatement, PrimitiveType, ScopeId, TypeRef,
 };
