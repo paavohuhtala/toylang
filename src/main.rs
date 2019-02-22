@@ -30,7 +30,13 @@ fn main() {
     let program = parser.parse_program();
     println!("Parsed: {:#?}", program);
 
-    let transformed = program.map(transform_program);
+    let program = if let Ok(program) = program {
+      program
+    } else {
+      continue;
+    };
+
+    let transformed = transform_program(program);
     println!("MIR: {:#?}", transformed);
 
     if let Ok((mut ctx, mut program)) = transformed {

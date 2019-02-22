@@ -12,6 +12,17 @@ pub struct SemanticContext {
   next_local_id: LocalId,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum SemanticError {
+  UnknownType { name: String },
+  UnknownLocal { name: String },
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct SemanticErrorCtx(pub usize, pub SemanticError);
+
+pub type SemanticResult<T> = Result<T, SemanticErrorCtx>;
+
 impl SemanticContext {
   pub fn new() -> SemanticContext {
     SemanticContext {
@@ -61,11 +72,19 @@ impl SemanticContext {
     id
   }
 
-  pub fn resolve_named_type(&self, name: &str) -> Option<TypeRef> {
-    match name {
-      "i32" => Some(TypeRef::Primitive(PrimitiveType::I32)),
-      "bool" => Some(TypeRef::Primitive(PrimitiveType::Bool)),
-      _ => None,
+  pub fn resolve_named_type(
+    &self,
+    IdentifierCtx(pos, identifier): &IdentifierCtx,
+  ) -> SemanticResult<TypeRef> {
+    match identifier.as_str() {
+      "i32" => Ok(TypeRef::Primitive(PrimitiveType::I32)),
+      "bool" => Ok(TypeRef::Primitive(PrimitiveType::Bool)),
+      _ => Err(SemanticErrorCtx(
+        *pos,
+        SemanticError::UnknownType {
+          name: identifier.clone(),
+        },
+      )),
     }
   }
 
@@ -123,22 +142,35 @@ pub fn transform_expression(
   ctx: &mut SemanticContext,
   scope_id: ScopeId,
   expression: &ExpressionCtx,
-) -> MirExpressionCtx {
+) -> SemanticResult<MirExpressionCtx> {
   let ExpressionCtx(pos, expression) = expression;
   match expression {
-    Expression::IntegerConstant(x) => MirExpressionCtx(*pos, MirExpression::IntegerConstant(*x)),
-    Expression::Local(local) => {
-      let local_id = ctx.resolve_named_local(scope_id, local).unwrap();
-      MirExpressionCtx(*pos, MirExpression::Local(local_id))
+    Expression::IntegerConstant(x) => {
+      Ok(MirExpressionCtx(*pos, MirExpression::IntegerConstant(*x)))
     }
+    Expression::Local(local) => match ctx.resolve_named_local(scope_id, local) {
+      Some(local_id) => Ok(MirExpressionCtx(*pos, MirExpression::Local(local_id))),
+      None => Err(SemanticErrorCtx(
+        *pos,
+        SemanticError::UnknownLocal {
+          name: local.to_string(),
+        },
+      )),
+    },
     Expression::UnaryOp(op, arg) => {
-      let value = transform_expression(ctx, scope_id, arg);
-      MirExpressionCtx(*pos, MirExpression::UnaryOp(*op, Box::new(value)))
+      let value = transform_expression(ctx, scope_id, arg)?;
+      Ok(MirExpressionCtx(
+        *pos,
+        MirExpression::UnaryOp(*op, Box::new(value)),
+      ))
     }
     Expression::BinaryOp(op, args) => {
-      let lhs = transform_expression(ctx, scope_id, &args.0);
-      let rhs = transform_expression(ctx, scope_id, &args.1);
-      MirExpressionCtx(*pos, MirExpression::BinaryOp(*op, Box::new((lhs, rhs))))
+      let lhs = transform_expression(ctx, scope_id, &args.0)?;
+      let rhs = transform_expression(ctx, scope_id, &args.1)?;
+      Ok(MirExpressionCtx(
+        *pos,
+        MirExpression::BinaryOp(*op, Box::new((lhs, rhs))),
+      ))
     }
   }
 }
@@ -147,31 +179,39 @@ pub fn transform_statement(
   ctx: &mut SemanticContext,
   scope_id: ScopeId,
   statement: &StatementCtx,
-) -> MirStatementCtx {
+) -> SemanticResult<MirStatementCtx> {
   let StatementCtx(pos, statement) = statement;
   match statement {
     Statement::Block { inner } => {
       let scope_id = ctx.declare_scope(Some(scope_id));
-      MirStatementCtx(
+      let inner: Result<_, _> = inner
+        .iter()
+        .map(|statement| transform_statement(ctx, scope_id, statement))
+        .collect();
+      let inner = inner?;
+
+      Ok(MirStatementCtx(
         *pos,
-        MirStatement::Block {
-          scope_id,
-          inner: inner
-            .iter()
-            .map(|statement| transform_statement(ctx, scope_id, statement))
-            .collect(),
-        },
-      )
+        MirStatement::Block { scope_id, inner },
+      ))
     }
     Statement::AssignLocal { local, value } => {
-      let local_id = ctx.resolve_named_local(scope_id, &local.1).unwrap();
-      MirStatementCtx(
-        *pos,
-        MirStatement::AssignLocal {
-          local_id,
-          value: transform_expression(ctx, scope_id, value),
-        },
-      )
+      let IdentifierCtx(pos, identifier) = local;
+      match ctx.resolve_named_local(scope_id, identifier) {
+        Some(local_id) => Ok(MirStatementCtx(
+          *pos,
+          MirStatement::AssignLocal {
+            local_id,
+            value: transform_expression(ctx, scope_id, value)?,
+          },
+        )),
+        None => Err(SemanticErrorCtx(
+          *pos,
+          SemanticError::UnknownLocal {
+            name: identifier.to_string(),
+          },
+        )),
+      }
     }
     Statement::DeclareVariable {
       name,
@@ -179,27 +219,33 @@ pub fn transform_statement(
       initial_value,
       ..
     } => {
-      let initial_type = initial_type
-        .as_ref()
-        .and_then(|x| ctx.resolve_named_type(&x.1));
+      let initial_type = match initial_type {
+        Some(x) => Some(ctx.resolve_named_type(x)?),
+        None => None,
+      };
       let local_id = ctx.declare_local(scope_id, name.1.clone(), initial_type);
-      let value = transform_expression(ctx, scope_id, initial_value);
+      let value = transform_expression(ctx, scope_id, initial_value)?;
 
-      MirStatementCtx(*pos, MirStatement::AssignLocal { local_id, value })
+      Ok(MirStatementCtx(
+        *pos,
+        MirStatement::AssignLocal { local_id, value },
+      ))
     }
   }
 }
 
-pub fn transform_program(Program(statements): Program) -> (SemanticContext, MirProgram) {
+pub fn transform_program(
+  Program(statements): Program,
+) -> SemanticResult<(SemanticContext, MirProgram)> {
   let mut ctx = SemanticContext::new();
   let root_scope = ctx.declare_scope(None);
 
   let mut transformed_statements = Vec::new();
   for statement in statements {
-    transformed_statements.push(transform_statement(&mut ctx, root_scope, &statement));
+    transformed_statements.push(transform_statement(&mut ctx, root_scope, &statement)?);
   }
 
-  (ctx, MirProgram(transformed_statements))
+  Ok((ctx, MirProgram(transformed_statements)))
 }
 
 #[cfg(test)]
@@ -235,13 +281,13 @@ mod mir_transformer_tests {
 
     assert_eq!(
       transformed,
-      MirStatementCtx(
+      Ok(MirStatementCtx(
         0,
         MirStatement::AssignLocal {
           local_id: LocalId(0),
           value: MirExpressionCtx(0, MirExpression::IntegerConstant(32))
         }
-      )
+      ))
     );
   }
 }
