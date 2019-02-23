@@ -13,7 +13,7 @@ pub enum ParseError {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct ParseErrorCtx(usize, ParseError);
+pub struct ParseErrorCtx(pub usize, pub ParseError);
 
 impl From<LexerErrorCtx> for ParseErrorCtx {
   fn from(x: LexerErrorCtx) -> ParseErrorCtx {

@@ -7,7 +7,7 @@ use crate::mir::{
 };
 use crate::semantic::SemanticContext;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum TypeError {
   NotAssignable {
     target: TypeRef,
@@ -27,7 +27,7 @@ pub enum TypeError {
   },
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TypeErrorCtx(usize, TypeError);
 
 pub type TypeResult<T> = Result<T, TypeErrorCtx>;
