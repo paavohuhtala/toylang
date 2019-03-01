@@ -1,5 +1,5 @@
 use crate::ast::*;
-use crate::mir::*;
+use crate::rast::*;
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -142,14 +142,14 @@ pub fn transform_expression(
   ctx: &mut SemanticContext,
   scope_id: ScopeId,
   expression: &ExpressionCtx,
-) -> SemanticResult<MirExpressionCtx> {
+) -> SemanticResult<RastExpressionCtx> {
   let ExpressionCtx(pos, expression) = expression;
   match expression {
     Expression::IntegerConstant(x) => {
-      Ok(MirExpressionCtx(*pos, MirExpression::IntegerConstant(*x)))
+      Ok(RastExpressionCtx(*pos, RastExpression::IntegerConstant(*x)))
     }
     Expression::Local(local) => match ctx.resolve_named_local(scope_id, local) {
-      Some(local_id) => Ok(MirExpressionCtx(*pos, MirExpression::Local(local_id))),
+      Some(local_id) => Ok(RastExpressionCtx(*pos, RastExpression::Local(local_id))),
       None => Err(SemanticErrorCtx(
         *pos,
         SemanticError::UnknownLocal {
@@ -159,17 +159,17 @@ pub fn transform_expression(
     },
     Expression::UnaryOp(op, arg) => {
       let value = transform_expression(ctx, scope_id, arg)?;
-      Ok(MirExpressionCtx(
+      Ok(RastExpressionCtx(
         *pos,
-        MirExpression::UnaryOp(*op, Box::new(value)),
+        RastExpression::UnaryOp(*op, Box::new(value)),
       ))
     }
     Expression::BinaryOp(op, args) => {
       let lhs = transform_expression(ctx, scope_id, &args.0)?;
       let rhs = transform_expression(ctx, scope_id, &args.1)?;
-      Ok(MirExpressionCtx(
+      Ok(RastExpressionCtx(
         *pos,
-        MirExpression::BinaryOp(*op, Box::new((lhs, rhs))),
+        RastExpression::BinaryOp(*op, Box::new((lhs, rhs))),
       ))
     }
   }
@@ -179,7 +179,7 @@ pub fn transform_statement(
   ctx: &mut SemanticContext,
   scope_id: ScopeId,
   statement: &StatementCtx,
-) -> SemanticResult<MirStatementCtx> {
+) -> SemanticResult<RastStatementCtx> {
   let StatementCtx(pos, statement) = statement;
   match statement {
     Statement::Block { inner } => {
@@ -190,17 +190,17 @@ pub fn transform_statement(
         .collect();
       let inner = inner?;
 
-      Ok(MirStatementCtx(
+      Ok(RastStatementCtx(
         *pos,
-        MirStatement::Block { scope_id, inner },
+        RastStatement::Block { scope_id, inner },
       ))
     }
     Statement::AssignLocal { local, value } => {
       let IdentifierCtx(pos, identifier) = local;
       match ctx.resolve_named_local(scope_id, identifier) {
-        Some(local_id) => Ok(MirStatementCtx(
+        Some(local_id) => Ok(RastStatementCtx(
           *pos,
-          MirStatement::AssignLocal {
+          RastStatement::AssignLocal {
             local_id,
             value: transform_expression(ctx, scope_id, value)?,
           },
@@ -226,9 +226,9 @@ pub fn transform_statement(
       let local_id = ctx.declare_local(scope_id, name.1.clone(), initial_type);
       let value = transform_expression(ctx, scope_id, initial_value)?;
 
-      Ok(MirStatementCtx(
+      Ok(RastStatementCtx(
         *pos,
-        MirStatement::AssignLocal { local_id, value },
+        RastStatement::AssignLocal { local_id, value },
       ))
     }
   }
@@ -236,7 +236,7 @@ pub fn transform_statement(
 
 pub fn transform_program(
   Program(statements): Program,
-) -> SemanticResult<(SemanticContext, MirProgram)> {
+) -> SemanticResult<(SemanticContext, RastProgram)> {
   let mut ctx = SemanticContext::new();
   let root_scope = ctx.declare_scope(None);
 
@@ -245,11 +245,11 @@ pub fn transform_program(
     transformed_statements.push(transform_statement(&mut ctx, root_scope, &statement)?);
   }
 
-  Ok((ctx, MirProgram(transformed_statements)))
+  Ok((ctx, RastProgram(transformed_statements)))
 }
 
 #[cfg(test)]
-mod mir_transformer_tests {
+mod rast_transformer_tests {
   use super::*;
 
   #[test]
@@ -281,11 +281,11 @@ mod mir_transformer_tests {
 
     assert_eq!(
       transformed,
-      Ok(MirStatementCtx(
+      Ok(RastStatementCtx(
         0,
-        MirStatement::AssignLocal {
+        RastStatement::AssignLocal {
           local_id: LocalId(0),
-          value: MirExpressionCtx(0, MirExpression::IntegerConstant(32))
+          value: RastExpressionCtx(0, RastExpression::IntegerConstant(32))
         }
       ))
     );

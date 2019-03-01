@@ -2,7 +2,7 @@ pub mod ast;
 pub mod ast_common;
 pub mod char_stream;
 pub mod interpreter;
-pub mod mir;
+pub mod rast;
 pub mod parse_utils;
 pub mod parser;
 pub mod semantic;

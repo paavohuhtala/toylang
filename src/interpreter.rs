@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast_common::{BinaryOperator, UnaryOperator};
-use crate::mir::{LocalId, MirExpression, MirProgram, MirStatement};
+use crate::rast::{LocalId, RastExpression, RastProgram, RastStatement};
 use crate::semantic::SemanticContext;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,9 +23,9 @@ impl Interpreter {
     }
   }
 
-  fn evaluate(&mut self, expression: &MirExpression) -> Value {
+  fn evaluate(&mut self, expression: &RastExpression) -> Value {
     use BinaryOperator::*;
-    use MirExpression::*;
+    use RastExpression::*;
     use UnaryOperator::*;
     use Value::*;
 
@@ -54,14 +54,14 @@ impl Interpreter {
     }
   }
 
-  pub fn execute(&mut self, statement: &MirStatement) -> Option<Value> {
+  pub fn execute(&mut self, statement: &RastStatement) -> Option<Value> {
     match statement {
-      MirStatement::AssignLocal { local_id, value } => {
+      RastStatement::AssignLocal { local_id, value } => {
         let rhs = self.evaluate(&value.1);
         self.locals.insert(*local_id, rhs);
         None
       }
-      MirStatement::Block { inner, .. } => {
+      RastStatement::Block { inner, .. } => {
         for statement in inner {
           self.execute(&statement.1);
         }
@@ -70,7 +70,7 @@ impl Interpreter {
     }
   }
 
-  pub fn execute_program(&mut self, program: &MirProgram) {
+  pub fn execute_program(&mut self, program: &RastProgram) {
     for statement in &program.0 {
       self.execute(&statement.1);
     }

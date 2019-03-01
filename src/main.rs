@@ -2,9 +2,9 @@ mod ast;
 mod ast_common;
 mod char_stream;
 mod interpreter;
-mod mir;
 mod parse_utils;
 mod parser;
+mod rast;
 mod semantic;
 mod token_stream;
 mod tokens;
@@ -37,7 +37,7 @@ fn main() {
     };
 
     let transformed = transform_program(program);
-    println!("MIR: {:#?}", transformed);
+    println!("RAST: {:#?}", transformed);
 
     if let Ok((mut ctx, mut program)) = transformed {
       match visit_program(&mut ctx, &mut program) {

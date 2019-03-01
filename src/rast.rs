@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+// RAST (pronounced like rust, of course) stands for Resolved AST
+// It represents a higher level AST after name and/or type resolution.
+
 use std::collections::HashSet;
 
 use crate::ast_common::{BinaryOperator, UnaryOperator};
@@ -87,30 +90,30 @@ impl Scope {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum MirExpression {
+pub enum RastExpression {
   IntegerConstant(i128),
   Local(LocalId),
-  UnaryOp(UnaryOperator, Box<MirExpressionCtx>),
-  BinaryOp(BinaryOperator, Box<(MirExpressionCtx, MirExpressionCtx)>),
+  UnaryOp(UnaryOperator, Box<RastExpressionCtx>),
+  BinaryOp(BinaryOperator, Box<(RastExpressionCtx, RastExpressionCtx)>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct MirExpressionCtx(pub usize, pub MirExpression);
+pub struct RastExpressionCtx(pub usize, pub RastExpression);
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum MirStatement {
+pub enum RastStatement {
   Block {
     scope_id: ScopeId,
-    inner: Vec<MirStatementCtx>,
+    inner: Vec<RastStatementCtx>,
   },
   AssignLocal {
     local_id: LocalId,
-    value: MirExpressionCtx,
+    value: RastExpressionCtx,
   },
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct MirStatementCtx(pub usize, pub MirStatement);
+pub struct RastStatementCtx(pub usize, pub RastStatement);
 
 #[derive(Debug)]
-pub struct MirProgram(pub Vec<MirStatementCtx>);
+pub struct RastProgram(pub Vec<RastStatementCtx>);

@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
 use crate::ast_common::{BinaryOperator, UnaryOperator};
-use crate::mir::{
-  LocalId, MirExpression, MirExpressionCtx, MirProgram, MirStatement, MirStatementCtx,
-  PrimitiveType, ScopeId, TypeRef,
+use crate::rast::{
+  LocalId, PrimitiveType, RastExpression, RastExpressionCtx, RastProgram, RastStatement,
+  RastStatementCtx, ScopeId, TypeRef,
 };
 use crate::semantic::SemanticContext;
 
@@ -51,15 +51,15 @@ pub fn is_assignable(ctx: &mut SemanticContext, a: TypeRef, b: TypeRef) -> bool 
 pub fn resolve_expression(
   ctx: &mut SemanticContext,
   scope_id: ScopeId,
-  expression: &MirExpressionCtx,
+  expression: &RastExpressionCtx,
 ) -> TypeResult<TypeRef> {
   use BinaryOperator::*;
-  use MirExpression::*;
   use PrimitiveType::*;
+  use RastExpression::*;
   use TypeRef::*;
   use UnaryOperator::*;
 
-  let MirExpressionCtx(pos, expression) = expression;
+  let RastExpressionCtx(pos, expression) = expression;
 
   match expression {
     IntegerConstant(_) => Ok(Primitive(I32)),
@@ -104,12 +104,12 @@ pub fn resolve_expression(
 pub fn visit_statement(
   ctx: &mut SemanticContext,
   scope_id: ScopeId,
-  statement: &mut MirStatementCtx,
+  statement: &mut RastStatementCtx,
 ) -> TypeResult<()> {
-  let MirStatementCtx(pos, statement) = statement;
+  let RastStatementCtx(pos, statement) = statement;
 
   match statement {
-    MirStatement::AssignLocal {
+    RastStatement::AssignLocal {
       local_id, value, ..
     } => {
       let value_type = resolve_expression(ctx, scope_id, value).unwrap();
@@ -131,7 +131,7 @@ pub fn visit_statement(
 
       Ok(())
     }
-    MirStatement::Block { scope_id, inner } => {
+    RastStatement::Block { scope_id, inner } => {
       for statement in inner {
         visit_statement(ctx, *scope_id, statement)?;
       }
@@ -142,7 +142,7 @@ pub fn visit_statement(
   }
 }
 
-pub fn visit_program(ctx: &mut SemanticContext, program: &mut MirProgram) -> TypeResult<()> {
+pub fn visit_program(ctx: &mut SemanticContext, program: &mut RastProgram) -> TypeResult<()> {
   for statement in &mut program.0 {
     visit_statement(ctx, ScopeId(0), statement)?;
   }
